@@ -10,13 +10,26 @@
     .tree-item { cursor: pointer; margin-left: 20px; display: block; }
     textarea { height: 150px; }
     .slot-btn { margin-right: 5px; margin-top: 5px; }
+    #dropZone {
+      border: 2px dashed #666;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      background: #f9f9f9;
+    }
+    #dropZone.dragover {
+      background: #e8f5e9;
+      border-color: #28a745;
+    }
   </style>
 </head>
 <body>
 <div class="container">
   <h1 class="mb-4">Stable Diffusion Prompt Manager</h1>
+
+  <!-- Main Prompt Areas -->
   <div class="row">
-    <!-- Prompt Area -->
     <div class="col-md-6">
       <h4>Prompt</h4>
       <textarea id="promptBox" class="form-control mb-2"></textarea>
@@ -26,7 +39,6 @@
         <button class="btn btn-sm btn-secondary" onclick="formatPrompt('promptBox')">Format</button>
       </div>
     </div>
-    <!-- Negative Prompt Area -->
     <div class="col-md-6">
       <h4>Negative Prompt</h4>
       <textarea id="negPromptBox" class="form-control mb-2"></textarea>
@@ -53,6 +65,19 @@
 
   <hr class="my-4">
 
+  <!-- Image Drop Zone -->
+  <h4>Import Prompt from Image</h4>
+  <div id="dropZone">Drag & drop a PNG here</div>
+  <textarea id="imagePromptBox" class="form-control mb-2" placeholder="Imported prompt will appear here..."></textarea>
+  <div>
+    <button class="btn btn-sm btn-secondary" onclick="toLowercase('imagePromptBox')">Lowercase</button>
+    <button class="btn btn-sm btn-secondary" onclick="dedupe('imagePromptBox')">De-duplicate</button>
+    <button class="btn btn-sm btn-secondary" onclick="formatPrompt('imagePromptBox')">Format</button>
+    <button class="btn btn-sm btn-success" onclick="addSelectionToSnippets()">Add Selection to Snippets</button>
+  </div>
+
+  <hr class="my-4">
+
   <!-- Tree View -->
   <h4>Prompt Builder</h4>
   <input type="text" id="searchBox" class="form-control mb-2" placeholder="Search snippets...">
@@ -65,10 +90,11 @@
     "Quality": ["high quality", "8k", "masterpiece", "ultra detailed"],
     "Styles": ["photorealistic portrait", "anime style", "cartoon", "oil painting"],
     "Effects": ["cinematic lighting", "soft focus", "hdr", "vivid colors"],
-    "Negative": ["low quality", "blurry", "bad anatomy", "duplicate"]
+    "Negative": ["low quality", "blurry", "bad anatomy", "duplicate"],
+    "Custom": []
   };
 
-  // ====== TEXT AREA FUNCTIONS ======
+  // ====== TEXT AREA HELPERS ======
   function getTokens(id) {
     return document.getElementById(id).value.split(",")
       .map(t => t.trim()).filter(t => t.length > 0);
@@ -93,7 +119,7 @@
     setTokens(id, tokens);
   }
 
-  // ====== TREE VIEW BUILDER ======
+  // ====== TREE VIEW ======
   function buildTree(filter="") {
     const container = document.getElementById("treeView");
     container.innerHTML = "";
@@ -188,14 +214,67 @@
     reader.readAsText(file);
   }
 
+  // ====== IMAGE METADATA READER ======
+  function readPromptFromPNG(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const bytes = new Uint8Array(e.target.result);
+
+      // Look for "tEXt" chunks in PNG
+      let text = "";
+      for (let i = 0; i < bytes.length - 4; i++) {
+        if (bytes[i] === 0x74 && bytes[i+1] === 0x45 && bytes[i+2] === 0x58 && bytes[i+3] === 0x74) { // 'tEXt'
+          let len = (bytes[i-4]<<24) | (bytes[i-3]<<16) | (bytes[i-2]<<8) | (bytes[i-1]);
+          let start = i+4;
+          let end = start + len;
+          let chunk = new TextDecoder().decode(bytes.slice(start, end));
+          if (chunk.includes("parameters") || chunk.includes("prompt")) {
+            text += chunk;
+          }
+        }
+      }
+
+      document.getElementById("imagePromptBox").value = text || "No prompt metadata found.";
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ====== DRAG & DROP ======
+  const dropZone = document.getElementById("dropZone");
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+  });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    if (e.dataTransfer.files.length > 0) {
+      let file = e.dataTransfer.files[0];
+      if (file.type === "image/png") {
+        readPromptFromPNG(file);
+      } else {
+        alert("Please drop a PNG file.");
+      }
+    }
+  });
+
+  // ====== ADD SELECTION TO SNIPPETS ======
+  function addSelectionToSnippets() {
+    let textarea = document.getElementById("imagePromptBox");
+    let selected = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd).trim();
+    if (selected.length > 0) {
+      categories["Custom"].push(selected);
+      buildTree(document.getElementById("searchBox").value);
+    } else {
+      alert("Please select part of the imported prompt first.");
+    }
+  }
+
   // ====== INIT ======
   buildTree();
   loadSlots();
-
-  // Search filter
-  document.getElementById("searchBox").addEventListener("input", (e) => {
-    buildTree(e.target.value);
-  });
+  document.getElementById("searchBox").addEventListener("input", (e) => buildTree(e.target.value));
 </script>
 </body>
 </html>
