@@ -6,9 +6,10 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { padding: 20px; }
-    .tree-category { cursor: pointer; font-weight: bold; }
+    .tree-category { cursor: pointer; font-weight: bold; margin-top: 5px; }
     .tree-item { cursor: pointer; margin-left: 20px; display: block; }
     textarea { height: 150px; }
+    .slot-btn { margin-right: 5px; margin-top: 5px; }
   </style>
 </head>
 <body>
@@ -39,13 +40,27 @@
 
   <hr class="my-4">
 
+  <!-- Slots -->
+  <h4>Saved Prompts</h4>
+  <div id="slots" class="mb-3"></div>
+  <div class="mb-3">
+    <button class="btn btn-primary btn-sm" onclick="saveCurrent()">Save Current</button>
+    <button class="btn btn-outline-primary btn-sm" onclick="clearSlots()">Clear All</button>
+    <button class="btn btn-outline-secondary btn-sm" onclick="exportPrompts()">Export JSON</button>
+    <input type="file" id="importFile" style="display:none" accept="application/json" onchange="importPrompts(event)">
+    <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('importFile').click()">Import JSON</button>
+  </div>
+
+  <hr class="my-4">
+
   <!-- Tree View -->
   <h4>Prompt Builder</h4>
+  <input type="text" id="searchBox" class="form-control mb-2" placeholder="Search snippets...">
   <div id="treeView" class="mb-4"></div>
 </div>
 
 <script>
-  // Sample categories (can be extended or loaded from JSON)
+  // ====== SAMPLE CATEGORIES ======
   const categories = {
     "Quality": ["high quality", "8k", "masterpiece", "ultra detailed"],
     "Styles": ["photorealistic portrait", "anime style", "cartoon", "oil painting"],
@@ -79,7 +94,7 @@
   }
 
   // ====== TREE VIEW BUILDER ======
-  function buildTree() {
+  function buildTree(filter="") {
     const container = document.getElementById("treeView");
     container.innerHTML = "";
 
@@ -95,11 +110,13 @@
 
       let itemDiv = document.createElement("div");
       categories[category].forEach(snippet => {
-        let item = document.createElement("span");
-        item.className = "tree-item";
-        item.innerText = snippet;
-        item.onclick = () => insertSnippet(snippet, category);
-        itemDiv.appendChild(item);
+        if (snippet.toLowerCase().includes(filter.toLowerCase())) {
+          let item = document.createElement("span");
+          item.className = "tree-item";
+          item.innerText = snippet;
+          item.onclick = () => insertSnippet(snippet, category);
+          itemDiv.appendChild(item);
+        }
       });
       container.appendChild(itemDiv);
     }
@@ -113,8 +130,72 @@
     formatPrompt(boxId);
   }
 
-  // Init
+  // ====== SLOT MANAGEMENT ======
+  function loadSlots() {
+    const slotsDiv = document.getElementById("slots");
+    slotsDiv.innerHTML = "";
+    let saved = JSON.parse(localStorage.getItem("sdSlots") || "[]");
+
+    saved.forEach((slot, idx) => {
+      let btn = document.createElement("button");
+      btn.className = "btn btn-sm btn-outline-dark slot-btn";
+      btn.innerText = `Slot ${idx+1}`;
+      btn.onclick = () => {
+        document.getElementById("promptBox").value = slot.prompt;
+        document.getElementById("negPromptBox").value = slot.negative;
+      };
+      slotsDiv.appendChild(btn);
+    });
+  }
+
+  function saveCurrent() {
+    let saved = JSON.parse(localStorage.getItem("sdSlots") || "[]");
+    saved.push({
+      prompt: document.getElementById("promptBox").value,
+      negative: document.getElementById("negPromptBox").value
+    });
+    localStorage.setItem("sdSlots", JSON.stringify(saved));
+    loadSlots();
+  }
+
+  function clearSlots() {
+    localStorage.removeItem("sdSlots");
+    loadSlots();
+  }
+
+  function exportPrompts() {
+    let saved = localStorage.getItem("sdSlots") || "[]";
+    let blob = new Blob([saved], { type: "application/json" });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = "prompts.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importPrompts(event) {
+    let file = event.target.files[0];
+    let reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        localStorage.setItem("sdSlots", e.target.result);
+        loadSlots();
+      } catch(err) {
+        alert("Invalid JSON file");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ====== INIT ======
   buildTree();
+  loadSlots();
+
+  // Search filter
+  document.getElementById("searchBox").addEventListener("input", (e) => {
+    buildTree(e.target.value);
+  });
 </script>
 </body>
 </html>
