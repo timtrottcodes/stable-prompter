@@ -1,473 +1,272 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Stable Diffusion Prompt Manager — Tags</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- pako for zlib/deflate decoding (zTXt / compressed iTXt) -->
-  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
-  <style>
-    body { padding: 20px; }
-    .tag-editor { display: flex; flex-wrap: wrap; gap: .4rem; min-height: 46px; padding: .5rem; border: 1px solid #ced4da; border-radius: .375rem; background: #fff; }
-    .tag-editor:focus-within { outline: 2px solid #86b7fe; outline-offset: 2px; }
-    .tag-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .6rem; background: #eef2f7; border: 1px solid #dde3ea; border-radius: 999px; user-select: none; cursor: grab; }
-    .tag-chip.dragging { opacity: .6; cursor: grabbing; }
-    .tag-chip .x { cursor: pointer; font-weight: 700; }
-    .tag-input { border: none; outline: none; min-width: 140px; flex: 1 0 120px; }
-    .tag-chip.selected { background: #dff1ff; border-color: #bfe3ff; }
-
-    .tree-category { cursor: pointer; font-weight: 600; margin-top: .25rem; }
-    .tree-items { margin-left: .5rem; }
-    .tree-item { display: inline-block; margin: .2rem; padding: .15rem .45rem; border: 1px dashed #cbd5e1; border-radius: .5rem; cursor: pointer; }
-    .tree-item:hover { background: #f8fafc; }
-
-    #dropZone { border: 2px dashed #6c757d; padding: 18px; border-radius: .5rem; text-align: center; background: #f8f9fa; }
-    #dropZone.dragover { background: #e8f5e9; border-color: #198754; }
-
-    .kbd { padding: 2px 6px; border: 1px solid #cbd5e1; border-bottom-width: 2px; border-radius: 4px; background: #f8fafc; font-size: .85rem; }
-  </style>
+<meta charset="UTF-8">
+<title>Stable Diffusion Prompt Manager</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  body { padding: 20px; }
+  .tree-category { cursor: pointer; font-weight: bold; margin-top: 5px; }
+  .tree-item { margin-left: 20px; display: flex; align-items: center; margin-bottom: 3px; }
+  .tree-item input { margin-right: 5px; }
+  textarea { height: 150px; }
+  .slot-btn { margin-right: 5px; margin-top: 5px; }
+  #dropZone {
+    border: 2px dashed #666;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    background: #f9f9f9;
+  }
+  #dropZone.dragover { background: #e8f5e9; border-color: #28a745; }
+</style>
 </head>
 <body>
-  <div class="container-xxl">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-      <h1 class="h3 m-0">Stable Diffusion Prompt Manager</h1>
-      <div class="text-secondary small">HTML + Bootstrap + Vanilla JS · Tag-based editor with drag & drop</div>
-    </div>
+<div class="container">
+  <h1 class="mb-4">Stable Diffusion Prompt Manager</h1>
 
-    <!-- Prompt Editors -->
-    <div class="row g-4">
-      <div class="col-lg-6">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h2 class="h5 m-0">Prompt</h2>
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-secondary" onclick="toLowercaseTags(promptEditor)">Lowercase</button>
-            <button class="btn btn-outline-secondary" onclick="dedupeTags(promptEditor)">De-duplicate</button>
-            <button class="btn btn-outline-secondary" onclick="formatTags(promptEditor)">Format</button>
-            <button class="btn btn-outline-primary" onclick="copyAsString(promptEditor)">Copy</button>
-          </div>
-        </div>
-        <div id="promptEditor" class="tag-editor" aria-label="Prompt tags"></div>
-      </div>
-
-      <div class="col-lg-6">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h2 class="h5 m-0">Negative Prompt</h2>
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-secondary" onclick="toLowercaseTags(negEditor)">Lowercase</button>
-            <button class="btn btn-outline-secondary" onclick="dedupeTags(negEditor)">De-duplicate</button>
-            <button class="btn btn-outline-secondary" onclick="formatTags(negEditor)">Format</button>
-            <button class="btn btn-outline-primary" onclick="copyAsString(negEditor)">Copy</button>
-          </div>
-        </div>
-        <div id="negEditor" class="tag-editor" aria-label="Negative tags"></div>
+  <!-- Main Prompt Areas -->
+  <div class="row">
+    <div class="col-md-6">
+      <h4>Prompt</h4>
+      <textarea id="promptBox" class="form-control mb-2"></textarea>
+      <div>
+        <button class="btn btn-sm btn-secondary" onclick="toLowercase('promptBox')">Lowercase</button>
+        <button class="btn btn-sm btn-secondary" onclick="dedupe('promptBox')">De-duplicate</button>
+        <button class="btn btn-sm btn-secondary" onclick="formatPrompt('promptBox')">Format</button>
       </div>
     </div>
-
-    <hr class="my-4" />
-
-    <!-- Slots + Import/Export -->
-    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
-      <h2 class="h5 m-0">Saved Prompts</h2>
-      <div class="small text-secondary">quick save/load stored in your browser</div>
-    </div>
-    <div id="slots" class="mb-3 d-flex flex-wrap gap-2"></div>
-    <div class="d-flex flex-wrap gap-2 mb-4">
-      <button class="btn btn-primary btn-sm" onclick="saveCurrent()">Save Current</button>
-      <button class="btn btn-outline-primary btn-sm" onclick="clearSlots()">Clear All</button>
-      <button class="btn btn-outline-secondary btn-sm" onclick="exportPrompts()">Export JSON</button>
-      <input type="file" id="importFile" hidden accept="application/json" onchange="importPrompts(event)" />
-      <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('importFile').click()">Import JSON</button>
-    </div>
-
-    <hr class="my-4" />
-
-    <!-- Image Import -->
-    <div class="row g-4">
-      <div class="col-lg-6">
-        <h2 class="h5">Import Prompt from Image (PNG)</h2>
-        <div id="dropZone" class="mb-2">Drag & drop a PNG here (Automatic1111 / ComfyUI)</div>
-        <div class="d-flex flex-wrap gap-2 mb-2">
-          <button class="btn btn-sm btn-outline-secondary" onclick="toLowercaseTags(importEditor)">Lowercase</button>
-          <button class="btn btn-sm btn-outline-secondary" onclick="dedupeTags(importEditor)">De-duplicate</button>
-          <button class="btn btn-sm btn-outline-secondary" onclick="formatTags(importEditor)">Format</button>
-          <button class="btn btn-sm btn-success" onclick="addSelectedImportToSnippets()">Add selected import → Snippets</button>
-          <button class="btn btn-sm btn-outline-primary" onclick="sendImportToPrompt()">Send all → Prompt</button>
-          <button class="btn btn-sm btn-outline-danger" onclick="sendImportToNegative()">Send all → Negative</button>
-        </div>
-        <div id="importEditor" class="tag-editor" aria-label="Imported prompt tags"></div>
-        <details class="mt-2">
-          <summary class="small">Show raw metadata</summary>
-          <textarea id="rawMeta" class="form-control mt-2" rows="6" readonly></textarea>
-        </details>
-      </div>
-
-      <div class="col-lg-6">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h2 class="h5 m-0">Prompt Builder</h2>
-          <input type="text" id="searchBox" class="form-control form-control-sm" style="max-width: 280px;" placeholder="Search snippets..." />
-        </div>
-        <div id="treeView" class="mb-2"></div>
-        <div class="d-flex flex-wrap gap-2">
-          <button class="btn btn-sm btn-outline-success" onclick="addSelectedPromptTagsToCustom()">Add selected Prompt tags → Custom</button>
-          <button class="btn btn-sm btn-outline-success" onclick="addSelectedNegativeTagsToCustom()">Add selected Negative tags → Custom</button>
-        </div>
-        <p class="text-secondary small mt-2">Tip: Click a tag to toggle selection. Use <span class="kbd">Enter</span> or <span class="kbd">,</span> to add tags. Drag to reorder.</p>
+    <div class="col-md-6">
+      <h4>Negative Prompt</h4>
+      <textarea id="negPromptBox" class="form-control mb-2"></textarea>
+      <div>
+        <button class="btn btn-sm btn-secondary" onclick="toLowercase('negPromptBox')">Lowercase</button>
+        <button class="btn btn-sm btn-secondary" onclick="dedupe('negPromptBox')">De-duplicate</button>
+        <button class="btn btn-sm btn-secondary" onclick="formatPrompt('negPromptBox')">Format</button>
       </div>
     </div>
   </div>
 
-  <script>
-    /*********************\
-     * Tag Editor class  *
-    \*********************/
-    class TagEditor {
-      constructor(rootEl) {
-        this.root = rootEl;
-        this.input = document.createElement('input');
-        this.input.className = 'tag-input';
-        this.root.appendChild(this.input);
+  <hr class="my-4">
 
-        this.input.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' || e.key === ',') {
-            e.preventDefault();
-            const value = this.input.value.trim();
-            if (value) {
-              value.split(',').map(t=>t.trim()).filter(Boolean).forEach(v=>this.addTag(v));
-              this.input.value = '';
+  <!-- Slots -->
+  <h4>Saved Prompts</h4>
+  <div id="slots" class="mb-3"></div>
+  <div class="mb-3">
+    <button class="btn btn-primary btn-sm" onclick="saveCurrent()">Save Current</button>
+    <button class="btn btn-outline-primary btn-sm" onclick="clearSlots()">Clear All</button>
+    <button class="btn btn-outline-secondary btn-sm" onclick="exportPrompts()">Export JSON</button>
+    <input type="file" id="importFile" style="display:none" accept="application/json" onchange="importPrompts(event)">
+    <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('importFile').click()">Import JSON</button>
+  </div>
+
+  <hr class="my-4">
+
+  <div class="row">
+    <div class="col-md-6">
+      <h4>Import Prompt from Image</h4>
+      <div id="dropZone">Drag & drop a PNG here</div>
+      <textarea id="imagePromptBox" class="form-control mb-2" placeholder="Imported prompt will appear here..."></textarea>
+      <div>
+        <button class="btn btn-sm btn-secondary" onclick="toLowercase('imagePromptBox')">Lowercase</button>
+        <button class="btn btn-sm btn-secondary" onclick="dedupe('imagePromptBox')">De-duplicate</button>
+        <button class="btn btn-sm btn-secondary" onclick="formatPrompt('imagePromptBox')">Format</button>
+        <button class="btn btn-sm btn-success" onclick="addSelectionToSnippets()">Add Selection to Snippets</button>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <h4>Prompt Builder</h4>
+      <input type="text" id="searchBox" class="form-control mb-2" placeholder="Search snippets...">
+      <div id="treeView" class="mb-4"></div>
+    </div>
+</div>
+
+<script>
+  // ====== CATEGORIES WITH KEY/VALUE SNIPPETS ======
+  const categories = {
+    "Quality": [
+      { key: "High Quality", value: "high quality, 8k, cinematic, realistic" },
+      { key: "Masterpiece", value: "masterpiece, ultra detailed, award winning" }
+    ],
+    "Styles": [
+      { key: "Photorealistic", value: "photorealistic, realistic, sharp focus" },
+      { key: "Anime", value: "anime style, vibrant colors" },
+      { key: "Cartoon", value: "cartoon style, bold lines, bright colors" }
+    ],
+    "Time": [
+      { key: "Morning", value: "morning, soft light" },
+      { key: "Noon", value: "bright daylight, clear shadows" },
+      { key: "Evening", value: "sunset, warm light" }
+    ],
+    "Lighting": [
+      { key: "Cinematic", value: "dramatic lighting, high contrast" },
+      { key: "Soft", value: "soft light, gentle shadows" },
+      { key: "HDR", value: "hdr, highly dynamic range" }
+    ],
+    "Negative": [
+      { key: "Low Quality", value: "low quality, blurry, bad anatomy" }
+    ],
+    "Custom": []
+  };
+
+  function getTokens(textarea) {
+    return textarea.value.split(",").map(t => t.trim()).filter(t => t.length>0);
+  }
+
+  function setTokens(textarea, tokens) {
+    textarea.value = tokens.join(", ");
+  }
+
+  function toLowercase(id) {
+    let ta = document.getElementById(id);
+    setTokens(ta, getTokens(ta).map(t=>t.toLowerCase()));
+  }
+  function dedupe(id) {
+    let ta = document.getElementById(id);
+    setTokens(ta, [...new Set(getTokens(ta).map(t=>t.toLowerCase()))]);
+  }
+  function formatPrompt(id) { dedupe(id); }
+
+  // ====== BUILD TREE VIEW WITH CHECKBOXES ======
+  function buildTree(filter="") {
+    const container = document.getElementById("treeView");
+    container.innerHTML = "";
+
+    const promptBox = document.getElementById("promptBox");
+    let promptTokens = getTokens(promptBox);
+
+    for (let category in categories) {
+      let catDiv = document.createElement("div");
+      catDiv.className = "tree-category";
+      catDiv.innerText = category;
+      catDiv.onclick = () => {
+        let next = catDiv.nextSibling;
+        next.style.display = next.style.display === "none" ? "block" : "none";
+      };
+      container.appendChild(catDiv);
+
+      let itemDiv = document.createElement("div");
+      itemDiv.style.display = "block";
+
+      categories[category].forEach(snippet => {
+        if (snippet.key.toLowerCase().includes(filter.toLowerCase())) {
+          let item = document.createElement("div");
+          item.className = "tree-item";
+
+          let checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          const snippetTokens = snippet.value.split(",").map(t=>t.trim());
+          checkbox.checked = snippetTokens.every(t=>promptTokens.includes(t));
+
+          checkbox.addEventListener("change", ()=>{
+            let tokens = getTokens(promptBox);
+            if(checkbox.checked){
+              snippetTokens.forEach(t=> { if(!tokens.includes(t)) tokens.push(t); });
+            } else {
+              tokens = tokens.filter(t=>!snippetTokens.includes(t));
             }
-          } else if (e.key === 'Backspace' && !this.input.value) {
-            const last = this.root.querySelector('.tag-chip:last-of-type');
-            if (last) last.remove();
-          }
-        });
+            setTokens(promptBox,tokens);
+            buildTree(document.getElementById("searchBox").value);
+          });
 
-        this.root.addEventListener('click', (e) => {
-          if (e.target === this.root) this.input.focus();
-        });
-      }
+          let label = document.createElement("span");
+          label.innerText = snippet.key;
 
-      addTag(text) {
-        const el = document.createElement('span');
-        el.className = 'tag-chip';
-        el.draggable = true;
-        el.innerHTML = `<span class="txt"></span><span class="x" title="Remove">×</span>`;
-        el.querySelector('.txt').textContent = text;
-        el.querySelector('.x').addEventListener('click', () => el.remove());
-        el.addEventListener('click', (ev) => {
-          if (ev.target.classList.contains('x')) return;
-          el.classList.toggle('selected');
-        });
-        // Drag logic
-        el.addEventListener('dragstart', (ev) => { el.classList.add('dragging'); ev.dataTransfer.setData('text/plain', ''); });
-        el.addEventListener('dragend',   () => el.classList.remove('dragging'));
-        this.root.insertBefore(el, this.input);
-      }
-
-      clear() {
-        this.root.querySelectorAll('.tag-chip').forEach(c => c.remove());
-      }
-
-      setTags(list) { this.clear(); list.forEach(t => this.addTag(t)); }
-
-      getTags() { return Array.from(this.root.querySelectorAll('.tag-chip .txt')).map(n => n.textContent.trim()).filter(Boolean); }
-
-      getSelectedTags() { return Array.from(this.root.querySelectorAll('.tag-chip.selected .txt')).map(n => n.textContent.trim()); }
-
-      toLowercase() { this.setTags(this.getTags().map(t => t.toLowerCase())); }
-      dedupe() { this.setTags([...new Set(this.getTags().map(t => t.toLowerCase()))]); }
-      format() { this.dedupe(); }
-
-      // parsing helper: from comma-separated string
-      addFromString(str) {
-        if (!str) return;
-        str.split(',').map(s=>s.trim()).filter(Boolean).forEach(v=>this.addTag(v));
-      }
-    }
-
-    // Global editors
-    const promptEditor = new TagEditor(document.getElementById('promptEditor'));
-    const negEditor    = new TagEditor(document.getElementById('negEditor'));
-    const importEditor = new TagEditor(document.getElementById('importEditor'));
-
-    // Shared tag actions
-    function toLowercaseTags(editor){ editor.toLowercase(); }
-    function dedupeTags(editor){ editor.dedupe(); }
-    function formatTags(editor){ editor.format(); }
-    function copyAsString(editor){
-      const str = editor.getTags().join(', ');
-      navigator.clipboard.writeText(str).then(()=>{
-        // Optional: simple feedback
+          item.appendChild(checkbox);
+          item.appendChild(label);
+          itemDiv.appendChild(item);
+        }
       });
+
+      container.appendChild(itemDiv);
     }
+  }
 
-    /*********************\
-     * Snippet Tree      *
-    \*********************/
-    const categories = {
-      Quality: ["high quality","8k","masterpiece","ultra detailed"],
-      Styles: ["photorealistic portrait","anime style","cartoon","oil painting"],
-      Effects: ["cinematic lighting","soft focus","hdr","vivid colors"],
-      Negative: ["low quality","blurry","bad anatomy","duplicate"],
-      Custom: []
-    };
+  document.getElementById("searchBox").addEventListener("input", (e)=>{
+    buildTree(e.target.value);
+  });
 
-    function buildTree(filter = '') {
-      const container = document.getElementById('treeView');
-      container.innerHTML = '';
-      const f = filter.toLowerCase();
-
-      Object.keys(categories).forEach(cat => {
-        const header = document.createElement('div');
-        header.className = 'tree-category';
-        header.textContent = cat;
-        container.appendChild(header);
-
-        const items = document.createElement('div');
-        items.className = 'tree-items';
-        categories[cat].forEach(snip => {
-          if (snip.toLowerCase().includes(f)) {
-            const item = document.createElement('span');
-            item.className = 'tree-item';
-            item.textContent = snip;
-            item.title = 'Click to add to ' + (cat === 'Negative' ? 'Negative' : 'Prompt');
-            item.addEventListener('click', () => {
-              if (cat === 'Negative') negEditor.addTag(snip); else promptEditor.addTag(snip);
-            });
-            items.appendChild(item);
-          }
-        });
-        container.appendChild(items);
-      });
-    }
-
-    document.getElementById('searchBox').addEventListener('input', (e)=> buildTree(e.target.value));
-
-    // Add selected tags to Custom snippets
-    function addToCustom(list){
-      list.forEach(t => { if (!categories.Custom.includes(t)) categories.Custom.push(t); });
-      buildTree(document.getElementById('searchBox').value);
-    }
-    function addSelectedPromptTagsToCustom(){ addToCustom(promptEditor.getSelectedTags()); }
-    function addSelectedNegativeTagsToCustom(){ addToCustom(negEditor.getSelectedTags()); }
-
-    /*********************\
-     * Slots & I/O       *
-    \*********************/
-    function loadSlots(){
-      const slotsDiv = document.getElementById('slots');
-      slotsDiv.innerHTML = '';
-      const saved = JSON.parse(localStorage.getItem('sdSlots') || '[]');
-      saved.forEach((slot, idx) => {
-        const btn = document.createElement('button');
-        btn.className = 'btn btn-outline-dark btn-sm';
-        btn.textContent = `Slot ${idx+1}`;
-        btn.title = slot.name || `Saved ${idx+1}`;
-        btn.addEventListener('click', () => {
-          promptEditor.setTags(slot.prompt || []);
-          negEditor.setTags(slot.negative || []);
-        });
-        slotsDiv.appendChild(btn);
-      });
-    }
-
-    function saveCurrent(){
-      const name = prompt('Optional name for this slot? (leave blank to skip)') || '';
-      const saved = JSON.parse(localStorage.getItem('sdSlots') || '[]');
-      saved.push({ name, prompt: promptEditor.getTags(), negative: negEditor.getTags() });
-      localStorage.setItem('sdSlots', JSON.stringify(saved));
+  // ====== SLOT MANAGEMENT ======
+  function loadSlots() {
+    const slotsDiv = document.getElementById("slots");
+    slotsDiv.innerHTML = "";
+    let saved = JSON.parse(localStorage.getItem("sdSlots") || "[]");
+    saved.forEach((slot, idx) => {
+      let btn = document.createElement("button");
+      btn.className = "btn btn-sm btn-outline-dark slot-btn";
+      btn.innerText = `Slot ${idx+1}`;
+      btn.onclick = () => {
+        document.getElementById("promptBox").value = slot.prompt;
+        document.getElementById("negPromptBox").value = slot.negative;
+        buildTree(document.getElementById("searchBox").value);
+      };
+      slotsDiv.appendChild(btn);
+    });
+  }
+  function saveCurrent() {
+    let saved = JSON.parse(localStorage.getItem("sdSlots")||"[]");
+    saved.push({ prompt: document.getElementById("promptBox").value,
+                 negative: document.getElementById("negPromptBox").value });
+    localStorage.setItem("sdSlots", JSON.stringify(saved));
+    loadSlots();
+  }
+  function clearSlots() { localStorage.removeItem("sdSlots"); loadSlots(); }
+  function exportPrompts() {
+    let saved = localStorage.getItem("sdSlots")||"[]";
+    let blob = new Blob([saved], {type:"application/json"});
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement("a"); a.href = url; a.download="prompts.json"; a.click(); URL.revokeObjectURL(url);
+  }
+  function importPrompts(event){
+    let file = event.target.files[0];
+    let reader = new FileReader();
+    reader.onload = function(e){
+      localStorage.setItem("sdSlots", e.target.result);
       loadSlots();
     }
+    reader.readAsText(file);
+  }
 
-    function clearSlots(){ localStorage.removeItem('sdSlots'); loadSlots(); }
-
-    function exportPrompts(){
-      const saved = localStorage.getItem('sdSlots') || '[]';
-      const blob = new Blob([saved], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'prompts.json'; a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function importPrompts(event){
-      const file = event.target.files[0]; if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => { localStorage.setItem('sdSlots', e.target.result); loadSlots(); };
-      reader.readAsText(file);
-    }
-
-    /*********************\
-     * PNG Metadata      *
-    \*********************/
-    function bytesToString(bytes){ try { return new TextDecoder().decode(bytes); } catch { return ''; } }
-    function readUint32(b, i){ return (b[i]<<24) | (b[i+1]<<16) | (b[i+2]<<8) | b[i+3]; }
-
-    function parsePNGMetadata(arrayBuffer){
-      const b = new Uint8Array(arrayBuffer);
-      const sig = [137,80,78,71,13,10,26,10];
-      for (let i=0;i<8;i++){ if (b[i] !== sig[i]) return { raw:"Not a PNG", a1111:null, comfy:null }; }
-
-      let i = 8; // after signature
-      let texts = [];
-      let comfyJSONs = [];
-
-      while (i < b.length){
-        if (i + 8 > b.length) break;
-        const len = readUint32(b, i); // 4
-        const type = String.fromCharCode(b[i+4], b[i+5], b[i+6], b[i+7]);
-        const dataStart = i + 8;
-        const dataEnd = dataStart + len;
-        if (dataEnd + 4 > b.length) break; // avoid overflow
-        const data = b.slice(dataStart, dataEnd);
-
-        if (type === 'tEXt'){
-          // key\0value
-          const text = bytesToString(data);
-          const zero = text.indexOf('\u0000');
-          let key = '', value = '';
-          if (zero >= 0){ key = text.slice(0, zero); value = text.slice(zero+1); }
-          else { value = text; }
-          if (/(parameters|prompt|sd-metadata)/i.test(key) || /(prompt|Negative prompt|Steps:)/.test(value)) texts.push(value);
-          // Some UIs store JSON as value too
-          try { const obj = JSON.parse(value); comfyJSONs.push(obj);} catch{}
+  // ====== IMAGE DROP ======
+  const dropZone = document.getElementById("dropZone");
+  dropZone.addEventListener("dragover", e=>{e.preventDefault(); dropZone.classList.add("dragover");});
+  dropZone.addEventListener("dragleave", ()=>dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e=>{e.preventDefault(); dropZone.classList.remove("dragover"); handleFile(e.dataTransfer.files[0]);});
+  function handleFile(file){
+    if(file.type!=="image/png"){ alert("Please drop a PNG"); return; }
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const bytes = new Uint8Array(e.target.result);
+      let textChunks = [];
+      let i=8;
+      while(i<bytes.length){
+        let length = (bytes[i]<<24)|(bytes[i+1]<<16)|(bytes[i+2]<<8)|bytes[i+3];
+        let type = String.fromCharCode(bytes[i+4],bytes[i+5],bytes[i+6],bytes[i+7]);
+        let data = bytes.slice(i+8,i+8+length);
+        if(["tEXt","iTXt","zTXt"].includes(type)){
+          let chunkText = new TextDecoder().decode(data);
+          if(chunkText.includes("parameters") || chunkText.includes("prompt")) textChunks.push(chunkText);
         }
-        else if (type === 'zTXt'){
-          // key (Latin-1) + 0 + compression method (1 byte) + compressed data
-          let p = 0; while (p < data.length && data[p] !== 0) p++;
-          const key = bytesToString(data.slice(0,p));
-          const method = data[p+1]; // 0 = deflate
-          const comp = data.slice(p+2);
-          let value = '';
-          try { value = bytesToString(pako.inflate(comp)); } catch {}
-          if (/(parameters|prompt|sd-metadata)/i.test(key) || /(prompt|Negative prompt|Steps:)/.test(value)) texts.push(value);
-          try { const obj = JSON.parse(value); comfyJSONs.push(obj);} catch{}
-        }
-        else if (type === 'iTXt'){
-          // iTXt structure: keyword\0 compressionFlag(1) compressionMethod(1) languageTag\0 translatedKeyword\0 text
-          let p = 0; while (p < data.length && data[p] !== 0) p++;
-          const keyword = bytesToString(data.slice(0,p));
-          const compFlag = data[p+1];
-          const compMethod = data[p+2];
-          let q = p+3; // language tag
-          while (q < data.length && data[q] !== 0) q++;
-          let r = q+1; // translated keyword
-          while (r < data.length && data[r] !== 0) r++;
-          const textBytes = data.slice(r+1);
-          let value = '';
-          try {
-            value = compFlag ? bytesToString(pako.inflate(textBytes)) : bytesToString(textBytes);
-          } catch { value = bytesToString(textBytes); }
-          if (/(parameters|prompt|sd-metadata|Description)/i.test(keyword) || /(prompt|Negative prompt|Steps:)/.test(value)) texts.push(value);
-          try { const obj = JSON.parse(value); comfyJSONs.push(obj);} catch{}
-        }
-
-        i = dataEnd + 4; // skip CRC
+        i += 12 + length;
       }
+      document.getElementById("imagePromptBox").value = textChunks.join("\n---\n")||"No prompt metadata found.";
+    };
+    reader.readAsArrayBuffer(file);
+  }
 
-      // Try to extract A1111 format
-      let aPos = null, aNeg = null, rawConcat = texts.join('\n---\n');
-      // Automatic1111 commonly stores "parameters" like: "<prompt>\nNegative prompt: <neg>\nSteps: ..."
-      if (rawConcat){
-        const negIdx = rawConcat.indexOf('Negative prompt:');
-        if (negIdx >= 0){
-          aPos = rawConcat.slice(0, negIdx).trim();
-          // take until the next line that looks like key:
-          const after = rawConcat.slice(negIdx + 'Negative prompt:'.length);
-          const lineEnd = after.indexOf('\n');
-          aNeg = (lineEnd >= 0 ? after.slice(0, lineEnd) : after).trim();
-        } else {
-          // sometimes only prompt exists
-          aPos = rawConcat.trim();
-        }
-      }
+  function addSelectionToSnippets(){
+    let ta = document.getElementById("imagePromptBox");
+    let sel = ta.value.substring(ta.selectionStart, ta.selectionEnd).trim();
+    if(sel.length>0){
+      categories["Custom"].push({key: sel, value: sel});
+      buildTree(document.getElementById("searchBox").value);
+    } else alert("Select text first.");
+  }
 
-      // Try to derive from ComfyUI JSON — look for nodes with text inputs
-      let comfyPos = [], comfyNeg = [];
-      comfyJSONs.forEach(obj => {
-        try {
-          const nodes = typeof obj === 'object' && obj ? obj : {};
-          // ComfyUI graphs often are objects keyed by node id, each with class_type and inputs
-          Object.values(nodes).forEach(n => {
-            const cls = n.class_type || n._meta?.class_type || n.type;
-            const inputs = n.inputs || n._meta?.inputs || {};
-            // Heuristics for text encoders
-            if (/CLIPTextEncode/i.test(cls) || /Prompt/i.test(cls)){
-              const txt = inputs.text || inputs.prompt || inputs.positive || inputs.negative || '';
-              if (typeof txt === 'string' && txt.trim()){
-                // Route by common input names
-                if (/negative/i.test(Object.keys(inputs).join(','))) comfyNeg.push(txt);
-                else comfyPos.push(txt);
-              }
-            }
-          });
-        } catch {}
-      });
-
-      const comfyPosStr = comfyPos.filter(Boolean).join(', ');
-      const comfyNegStr = comfyNeg.filter(Boolean).join(', ');
-
-      return { raw: rawConcat, a1111: { pos: aPos, neg: aNeg }, comfy: { pos: comfyPosStr || null, neg: comfyNegStr || null } };
-    }
-
-    // Handle drop
-    const dz = document.getElementById('dropZone');
-    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
-    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-    dz.addEventListener('drop', (e) => {
-      e.preventDefault(); dz.classList.remove('dragover');
-      const f = e.dataTransfer.files?.[0];
-      if (!f) return; if (f.type !== 'image/png'){ alert('Please drop a PNG file.'); return; }
-      const rdr = new FileReader();
-      rdr.onload = (ev) => {
-        const meta = parsePNGMetadata(ev.target.result);
-        document.getElementById('rawMeta').value = meta.raw || '[no readable metadata]';
-        importEditor.clear();
-        // Prefer explicit comfy, else A1111, else fallback raw split
-        const pos = meta.comfy.pos || meta.a1111.pos || '';
-        const neg = meta.comfy.neg || meta.a1111.neg || '';
-        // Fill import editor with positive + negative combined (so you can pick pieces)
-        const combined = [pos, neg].filter(Boolean).join(', ');
-        importEditor.addFromString(combined);
-        // Also, if negative present, load it into negative editor (non-destructive append)
-        if (neg) negEditor.addFromString(neg);
-      };
-      rdr.readAsArrayBuffer(f);
-    });
-
-    // Move imports to editors
-    function sendImportToPrompt(){ promptEditor.addFromString(importEditor.getTags().join(', ')); }
-    function sendImportToNegative(){ negEditor.addFromString(importEditor.getTags().join(', ')); }
-
-    // Add selected import tags to Custom snippets
-    function addSelectedImportToSnippets(){
-      addToCustom(importEditor.getSelectedTags());
-    }
-
-    /*********************\
-     * Drag positioning  *
-    \*********************/
-    // Single document-level dragover handler to reposition .dragging chip within its own editor
-    document.addEventListener('dragover', (e) => {
-      const dragging = document.querySelector('.tag-chip.dragging');
-      if (!dragging) return;
-      e.preventDefault();
-      const container = dragging.parentElement;
-      const chips = Array.from(container.querySelectorAll('.tag-chip:not(.dragging)'));
-      let insertBefore = null;
-      for (const chip of chips){
-        const rect = chip.getBoundingClientRect();
-        if (e.clientY < rect.top + rect.height/2 || (Math.abs(e.clientY - (rect.top + rect.height/2)) < rect.height/2 && e.clientX < rect.left + rect.width/2)){
-          insertBefore = chip; break;
-        }
-      }
-      if (insertBefore) container.insertBefore(dragging, insertBefore); else container.insertBefore(dragging, container.querySelector('.tag-input'));
-    });
-
-    // Initial build
-    buildTree();
-    loadSlots();
-
-  </script>
+  // ====== INIT ======
+  buildTree();
+  loadSlots();
+</script>
 </body>
 </html>
