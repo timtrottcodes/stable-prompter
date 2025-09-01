@@ -214,27 +214,33 @@
     reader.readAsText(file);
   }
 
-  // ====== IMAGE METADATA READER ======
+  // ====== IMAGE METADATA READER (Robust) ======
   function readPromptFromPNG(file) {
     const reader = new FileReader();
     reader.onload = function(e) {
       const bytes = new Uint8Array(e.target.result);
+      let textChunks = [];
 
-      // Look for "tEXt" chunks in PNG
-      let text = "";
-      for (let i = 0; i < bytes.length - 4; i++) {
-        if (bytes[i] === 0x74 && bytes[i+1] === 0x45 && bytes[i+2] === 0x58 && bytes[i+3] === 0x74) { // 'tEXt'
-          let len = (bytes[i-4]<<24) | (bytes[i-3]<<16) | (bytes[i-2]<<8) | (bytes[i-1]);
-          let start = i+4;
-          let end = start + len;
-          let chunk = new TextDecoder().decode(bytes.slice(start, end));
-          if (chunk.includes("parameters") || chunk.includes("prompt")) {
-            text += chunk;
+      let i = 8; // skip PNG signature
+      while (i < bytes.length) {
+        let length = (bytes[i]<<24) | (bytes[i+1]<<16) | (bytes[i+2]<<8) | (bytes[i+3]);
+        let type = String.fromCharCode(bytes[i+4], bytes[i+5], bytes[i+6], bytes[i+7]);
+        let dataStart = i + 8;
+        let dataEnd = dataStart + length;
+        let data = bytes.slice(dataStart, dataEnd);
+
+        if (type === "tEXt" || type === "iTXt" || type === "zTXt") {
+          let chunkText = new TextDecoder().decode(data);
+          if (chunkText.includes("parameters") || chunkText.includes("prompt")) {
+            textChunks.push(chunkText);
           }
         }
+
+        i = dataEnd + 4; // skip CRC
       }
 
-      document.getElementById("imagePromptBox").value = text || "No prompt metadata found.";
+      let result = textChunks.join("\n---\n");
+      document.getElementById("imagePromptBox").value = result || "No prompt metadata found.";
     };
     reader.readAsArrayBuffer(file);
   }
