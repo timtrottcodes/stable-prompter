@@ -1,0 +1,81 @@
+#sidebar {
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--bs-border-color);
+  padding: 20px;
+  background-color: var(--bs-light-border-subtle);
+}
+
+[data-bs-theme="dark"] #sidebar {
+  background-color: var(--bs-dark-border-subtle);
+}
+
+#main {
+  padding: 20px;
+}
+
+.tree-category {
+  font-weight: bold;
+  margin-top: 5px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--bs-body-color);
+}
+
+.tree-item {
+  margin-left: 20px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 3px;
+  border: 1px dashed transparent;
+  padding: 2px;
+}
+
+.tree-item.dragging {
+  opacity: 0.5;
+  border: 1px dashed var(--bs-primary);
+}
+
+.tree-item input[type="checkbox"] {
+  margin-right: 5px;
+}
+
+.tree-item span {
+  flex-grow: 1;
+}
+
+.category-controls button {
+  margin-left: 3px;
+  border: none;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.slot-btn {
+  margin-right: 5px;
+  margin-top: 5px;
+}
+
+#dropZone {
+  border: 2px dashed var(--bs-info-bg-subtle);
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  background-color: var(--bs-light-border-subtle);
+  color: var(--bs-body-color);
+}
+
+#dropZone.dragover {
+  background-color: var(--bs-success-bg-subtle);
+  border-color: var(--bs-success);
+}
+
+.snippet-list {
+  min-height: 1em;
+}

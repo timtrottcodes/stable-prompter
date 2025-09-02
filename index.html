@@ -1,272 +1,101 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Stable Diffusion Prompt Manager</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<style>
-  body { padding: 20px; }
-  .tree-category { cursor: pointer; font-weight: bold; margin-top: 5px; }
-  .tree-item { margin-left: 20px; display: flex; align-items: center; margin-bottom: 3px; }
-  .tree-item input { margin-right: 5px; }
-  textarea { height: 150px; }
-  .slot-btn { margin-right: 5px; margin-top: 5px; }
-  #dropZone {
-    border: 2px dashed #666;
-    padding: 20px;
-    text-align: center;
-    margin-bottom: 15px;
-    border-radius: 8px;
-    background: #f9f9f9;
-  }
-  #dropZone.dragover { background: #e8f5e9; border-color: #28a745; }
-</style>
-</head>
-<body>
-<div class="container">
-  <h1 class="mb-4">Stable Diffusion Prompt Manager</h1>
+  <head>
+    <meta charset="UTF-8" />
+    <title>SD Prompt Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <link href="css/styles.css" rel="stylesheet" />
+  </head>
+  <body data-bs-theme="light">
+    <div class="d-flex">
+      <!-- Sidebar -->
+      <div id="sidebar" class="col-md-2">
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="darkModeToggle" />
+          <label class="form-check-label" for="darkModeToggle">Dark Mode</label>
+        </div>
 
-  <!-- Main Prompt Areas -->
-  <div class="row">
-    <div class="col-md-6">
-      <h4>Prompt</h4>
-      <textarea id="promptBox" class="form-control mb-2"></textarea>
-      <div>
-        <button class="btn btn-sm btn-secondary" onclick="toLowercase('promptBox')">Lowercase</button>
-        <button class="btn btn-sm btn-secondary" onclick="dedupe('promptBox')">De-duplicate</button>
-        <button class="btn btn-sm btn-secondary" onclick="formatPrompt('promptBox')">Format</button>
+        <h4>Prompt Categories</h4>
+        <div class="sidebar-actions mb-3">
+          <input type="text" id="newCategoryName" class="form-control mb-1" placeholder="New category" />
+          <button class="btn btn-sm btn-success w-100 mb-2" onclick="addCategory()">Add Category</button>
+          <button class="btn btn-sm btn-outline-success w-100 mb-1" onclick="exportCategories()">Export</button>
+          <input type="file" id="importCatFile" style="display: none" accept="application/json" onchange="importCategories(event)" />
+          <button class="btn btn-sm btn-outline-success w-100" onclick="document.getElementById('importCatFile').click()">Import</button>
+        </div>
+        <input type="text" id="searchBox" class="form-control mb-2" placeholder="Search snippets..." />
+        <div id="treeView"></div>
+      </div>
+
+      <!-- Main -->
+      <div id="main" class="col-md-10">
+        <div class="row">
+          <div class="col-md-6">
+            <h4>Prompt</h4>
+            <textarea id="promptBox" class="form-control mb-2" rows="5"></textarea>
+            <div class="mb-2">
+              <button class="btn btn-sm btn-secondary" onclick="toLowercase('promptBox')">Lowercase</button>
+              <button class="btn btn-sm btn-secondary" onclick="dedupe('promptBox')">De-duplicate</button>
+              <button class="btn btn-sm btn-secondary" onclick="formatPrompt('promptBox')">Format</button>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h4>Negative Prompt</h4>
+            <textarea id="negPromptBox" class="form-control mb-2" rows="5"></textarea>
+            <div class="mb-2">
+              <button class="btn btn-sm btn-secondary" onclick="toLowercase('negPromptBox')">Lowercase</button>
+              <button class="btn btn-sm btn-secondary" onclick="dedupe('negPromptBox')">De-duplicate</button>
+              <button class="btn btn-sm btn-secondary" onclick="formatPrompt('negPromptBox')">Format</button>
+            </div>
+          </div>
+        </div>
+
+        <hr />
+        <h4>Saved Prompts</h4>
+        <div id="slots" class="mb-3"></div>
+        <div class="mb-3">
+          <button class="btn btn-primary btn-sm" onclick="saveCurrent()">Save Current</button>
+          <button class="btn btn-outline-primary btn-sm" onclick="clearSlots()">Clear All</button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="exportPrompts()">Export JSON</button>
+          <input type="file" id="importFile" style="display: none" accept="application/json" onchange="importPrompts(event)" />
+          <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('importFile').click()">Import JSON</button>
+        </div>
+
+        <hr />
+        <h4>Import Prompt from Image</h4>
+        <div id="dropZone">Drag & drop a PNG here</div>
+        <textarea id="imagePromptBox" class="form-control mb-2" rows="5" placeholder="Imported prompt will appear here..."></textarea>
+        <div class="mb-2">
+          <button class="btn btn-sm btn-secondary" onclick="toLowercase('imagePromptBox')">Lowercase</button>
+          <button class="btn btn-sm btn-secondary" onclick="dedupe('imagePromptBox')">De-duplicate</button>
+          <button class="btn btn-sm btn-secondary" onclick="formatPrompt('imagePromptBox')">Format</button>
+          <button class="btn btn-sm btn-success" onclick="addSelectionToSnippets()">Add Selection to Snippets</button>
+        </div>
       </div>
     </div>
-    <div class="col-md-6">
-      <h4>Negative Prompt</h4>
-      <textarea id="negPromptBox" class="form-control mb-2"></textarea>
-      <div>
-        <button class="btn btn-sm btn-secondary" onclick="toLowercase('negPromptBox')">Lowercase</button>
-        <button class="btn btn-sm btn-secondary" onclick="dedupe('negPromptBox')">De-duplicate</button>
-        <button class="btn btn-sm btn-secondary" onclick="formatPrompt('negPromptBox')">Format</button>
+
+    <!-- Bootstrap Modal for Editing Snippet -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Edit Snippet</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="text" id="editKey" class="form-control mb-2" placeholder="Key" />
+            <textarea id="editValue" class="form-control" placeholder="Value"></textarea>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button class="btn btn-primary" onclick="saveEdit()">Save</button>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <hr class="my-4">
-
-  <!-- Slots -->
-  <h4>Saved Prompts</h4>
-  <div id="slots" class="mb-3"></div>
-  <div class="mb-3">
-    <button class="btn btn-primary btn-sm" onclick="saveCurrent()">Save Current</button>
-    <button class="btn btn-outline-primary btn-sm" onclick="clearSlots()">Clear All</button>
-    <button class="btn btn-outline-secondary btn-sm" onclick="exportPrompts()">Export JSON</button>
-    <input type="file" id="importFile" style="display:none" accept="application/json" onchange="importPrompts(event)">
-    <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('importFile').click()">Import JSON</button>
-  </div>
-
-  <hr class="my-4">
-
-  <div class="row">
-    <div class="col-md-6">
-      <h4>Import Prompt from Image</h4>
-      <div id="dropZone">Drag & drop a PNG here</div>
-      <textarea id="imagePromptBox" class="form-control mb-2" placeholder="Imported prompt will appear here..."></textarea>
-      <div>
-        <button class="btn btn-sm btn-secondary" onclick="toLowercase('imagePromptBox')">Lowercase</button>
-        <button class="btn btn-sm btn-secondary" onclick="dedupe('imagePromptBox')">De-duplicate</button>
-        <button class="btn btn-sm btn-secondary" onclick="formatPrompt('imagePromptBox')">Format</button>
-        <button class="btn btn-sm btn-success" onclick="addSelectionToSnippets()">Add Selection to Snippets</button>
-      </div>
-    </div>
-    <div class="col-md-6">
-      <h4>Prompt Builder</h4>
-      <input type="text" id="searchBox" class="form-control mb-2" placeholder="Search snippets...">
-      <div id="treeView" class="mb-4"></div>
-    </div>
-</div>
-
-<script>
-  // ====== CATEGORIES WITH KEY/VALUE SNIPPETS ======
-  const categories = {
-    "Quality": [
-      { key: "High Quality", value: "high quality, 8k, cinematic, realistic" },
-      { key: "Masterpiece", value: "masterpiece, ultra detailed, award winning" }
-    ],
-    "Styles": [
-      { key: "Photorealistic", value: "photorealistic, realistic, sharp focus" },
-      { key: "Anime", value: "anime style, vibrant colors" },
-      { key: "Cartoon", value: "cartoon style, bold lines, bright colors" }
-    ],
-    "Time": [
-      { key: "Morning", value: "morning, soft light" },
-      { key: "Noon", value: "bright daylight, clear shadows" },
-      { key: "Evening", value: "sunset, warm light" }
-    ],
-    "Lighting": [
-      { key: "Cinematic", value: "dramatic lighting, high contrast" },
-      { key: "Soft", value: "soft light, gentle shadows" },
-      { key: "HDR", value: "hdr, highly dynamic range" }
-    ],
-    "Negative": [
-      { key: "Low Quality", value: "low quality, blurry, bad anatomy" }
-    ],
-    "Custom": []
-  };
-
-  function getTokens(textarea) {
-    return textarea.value.split(",").map(t => t.trim()).filter(t => t.length>0);
-  }
-
-  function setTokens(textarea, tokens) {
-    textarea.value = tokens.join(", ");
-  }
-
-  function toLowercase(id) {
-    let ta = document.getElementById(id);
-    setTokens(ta, getTokens(ta).map(t=>t.toLowerCase()));
-  }
-  function dedupe(id) {
-    let ta = document.getElementById(id);
-    setTokens(ta, [...new Set(getTokens(ta).map(t=>t.toLowerCase()))]);
-  }
-  function formatPrompt(id) { dedupe(id); }
-
-  // ====== BUILD TREE VIEW WITH CHECKBOXES ======
-  function buildTree(filter="") {
-    const container = document.getElementById("treeView");
-    container.innerHTML = "";
-
-    const promptBox = document.getElementById("promptBox");
-    let promptTokens = getTokens(promptBox);
-
-    for (let category in categories) {
-      let catDiv = document.createElement("div");
-      catDiv.className = "tree-category";
-      catDiv.innerText = category;
-      catDiv.onclick = () => {
-        let next = catDiv.nextSibling;
-        next.style.display = next.style.display === "none" ? "block" : "none";
-      };
-      container.appendChild(catDiv);
-
-      let itemDiv = document.createElement("div");
-      itemDiv.style.display = "block";
-
-      categories[category].forEach(snippet => {
-        if (snippet.key.toLowerCase().includes(filter.toLowerCase())) {
-          let item = document.createElement("div");
-          item.className = "tree-item";
-
-          let checkbox = document.createElement("input");
-          checkbox.type = "checkbox";
-          const snippetTokens = snippet.value.split(",").map(t=>t.trim());
-          checkbox.checked = snippetTokens.every(t=>promptTokens.includes(t));
-
-          checkbox.addEventListener("change", ()=>{
-            let tokens = getTokens(promptBox);
-            if(checkbox.checked){
-              snippetTokens.forEach(t=> { if(!tokens.includes(t)) tokens.push(t); });
-            } else {
-              tokens = tokens.filter(t=>!snippetTokens.includes(t));
-            }
-            setTokens(promptBox,tokens);
-            buildTree(document.getElementById("searchBox").value);
-          });
-
-          let label = document.createElement("span");
-          label.innerText = snippet.key;
-
-          item.appendChild(checkbox);
-          item.appendChild(label);
-          itemDiv.appendChild(item);
-        }
-      });
-
-      container.appendChild(itemDiv);
-    }
-  }
-
-  document.getElementById("searchBox").addEventListener("input", (e)=>{
-    buildTree(e.target.value);
-  });
-
-  // ====== SLOT MANAGEMENT ======
-  function loadSlots() {
-    const slotsDiv = document.getElementById("slots");
-    slotsDiv.innerHTML = "";
-    let saved = JSON.parse(localStorage.getItem("sdSlots") || "[]");
-    saved.forEach((slot, idx) => {
-      let btn = document.createElement("button");
-      btn.className = "btn btn-sm btn-outline-dark slot-btn";
-      btn.innerText = `Slot ${idx+1}`;
-      btn.onclick = () => {
-        document.getElementById("promptBox").value = slot.prompt;
-        document.getElementById("negPromptBox").value = slot.negative;
-        buildTree(document.getElementById("searchBox").value);
-      };
-      slotsDiv.appendChild(btn);
-    });
-  }
-  function saveCurrent() {
-    let saved = JSON.parse(localStorage.getItem("sdSlots")||"[]");
-    saved.push({ prompt: document.getElementById("promptBox").value,
-                 negative: document.getElementById("negPromptBox").value });
-    localStorage.setItem("sdSlots", JSON.stringify(saved));
-    loadSlots();
-  }
-  function clearSlots() { localStorage.removeItem("sdSlots"); loadSlots(); }
-  function exportPrompts() {
-    let saved = localStorage.getItem("sdSlots")||"[]";
-    let blob = new Blob([saved], {type:"application/json"});
-    let url = URL.createObjectURL(blob);
-    let a = document.createElement("a"); a.href = url; a.download="prompts.json"; a.click(); URL.revokeObjectURL(url);
-  }
-  function importPrompts(event){
-    let file = event.target.files[0];
-    let reader = new FileReader();
-    reader.onload = function(e){
-      localStorage.setItem("sdSlots", e.target.result);
-      loadSlots();
-    }
-    reader.readAsText(file);
-  }
-
-  // ====== IMAGE DROP ======
-  const dropZone = document.getElementById("dropZone");
-  dropZone.addEventListener("dragover", e=>{e.preventDefault(); dropZone.classList.add("dragover");});
-  dropZone.addEventListener("dragleave", ()=>dropZone.classList.remove("dragover"));
-  dropZone.addEventListener("drop", e=>{e.preventDefault(); dropZone.classList.remove("dragover"); handleFile(e.dataTransfer.files[0]);});
-  function handleFile(file){
-    if(file.type!=="image/png"){ alert("Please drop a PNG"); return; }
-    const reader = new FileReader();
-    reader.onload = function(e){
-      const bytes = new Uint8Array(e.target.result);
-      let textChunks = [];
-      let i=8;
-      while(i<bytes.length){
-        let length = (bytes[i]<<24)|(bytes[i+1]<<16)|(bytes[i+2]<<8)|bytes[i+3];
-        let type = String.fromCharCode(bytes[i+4],bytes[i+5],bytes[i+6],bytes[i+7]);
-        let data = bytes.slice(i+8,i+8+length);
-        if(["tEXt","iTXt","zTXt"].includes(type)){
-          let chunkText = new TextDecoder().decode(data);
-          if(chunkText.includes("parameters") || chunkText.includes("prompt")) textChunks.push(chunkText);
-        }
-        i += 12 + length;
-      }
-      document.getElementById("imagePromptBox").value = textChunks.join("\n---\n")||"No prompt metadata found.";
-    };
-    reader.readAsArrayBuffer(file);
-  }
-
-  function addSelectionToSnippets(){
-    let ta = document.getElementById("imagePromptBox");
-    let sel = ta.value.substring(ta.selectionStart, ta.selectionEnd).trim();
-    if(sel.length>0){
-      categories["Custom"].push({key: sel, value: sel});
-      buildTree(document.getElementById("searchBox").value);
-    } else alert("Select text first.");
-  }
-
-  // ====== INIT ======
-  buildTree();
-  loadSlots();
-</script>
-</body>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/script.js"></script>
+  </body>
 </html>
